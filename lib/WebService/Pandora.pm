@@ -10,7 +10,7 @@ use WebService::Pandora::Partner::iOS;
 use JSON;
 use Data::Dumper;
 
-our $VERSION = '0.1';
+our $VERSION = '0.2';
 
 ### constructor ###
 
@@ -44,11 +44,29 @@ sub new {
     return $self;
 }
 
+### getters/setters ###
+
+sub error {
+
+    my ( $self, $error ) = @_;
+
+    $self->{'error'} = $error if ( defined( $error ) );
+
+    return $self->{'error'};
+}
+
 ### public methods ###
 
 sub login {
 
     my ( $self ) = @_;
+
+    # make sure both username and password were given
+    if ( !defined( $self->{'username'} ) || !defined( $self->{'password'} ) ) {
+
+        $self->error( 'Both username and password must be given in the constructor.' );
+        return;
+    }
 
     # first, do the partner login
     my $ret = $self->{'partner'}->login();
@@ -66,8 +84,25 @@ sub login {
     $self->{'partnerId'} = $ret->{'partnerId'};
     $self->{'syncTime'} = $ret->{'syncTime'};
 
+    # throw an error if for some reason we didn't get them
+    if ( !defined( $self->{'partnerAuthToken'} ) ||
+         !defined( $self->{'partnerId'} ) ||
+         !defined( $self->{'syncTime'} ) ) {
+
+        $self->error( 'Either partnerAuthToken, partnerId, or syncTime was not returned!' );
+        return;
+    }
+
     # handle special case of decrypting the sync time
     $self->{'syncTime'} = $self->{'cryptor'}->decrypt( $self->{'syncTime'} );
+
+    # detect error decrypting
+    if ( !defined( $self->{'syncTime'} ) ) {
+
+        $self->error( "An error occurred decrypting the syncTime: " . $self->{'cryptor'}->error() );
+        return;
+    }
+
     $self->{'syncTime'} = substr( $self->{'syncTime'}, 4 );
 
     # now create and execute the method for the user login request
@@ -97,6 +132,13 @@ sub login {
     # store even more attributes we'll need later
     $self->{'userId'} = $ret->{'userId'};
     $self->{'userAuthToken'} = $ret->{'userAuthToken'};
+
+    # make sure we actually got them
+    if ( !defined( $self->{'userId'} ) || !defined( $self->{'userAuthToken'} ) ) {
+
+        $self->error( 'Either userId or userAuthToken was not returned!' );
+        return;
+    }
 
     # success
     return 1;
@@ -201,8 +243,8 @@ sub getStation {
     # make sure they provided a stationToken argument
     if ( !defined( $stationToken ) ) {
 
-	$self->error( 'A stationToken must be specified.' );
-	return;
+        $self->error( 'A stationToken must be specified.' );
+        return;
     }
 
     # create the user.getStation method w/ appropriate params
@@ -240,8 +282,8 @@ sub search {
     # make sure they provided a searchText argument
     if ( !defined( $searchText ) ) {
 
-	$self->error( 'A searchText must be specified.' );
-	return;
+        $self->error( 'A searchText must be specified.' );
+        return;
     }
 
     # create the music.search method w/ appropriate params
@@ -278,8 +320,8 @@ sub getPlaylist {
     # make sure they provided a stationToken argument
     if ( !defined( $stationToken ) ) {
 
-	$self->error( 'A stationToken must be specified.' );
-	return;
+        $self->error( 'A stationToken must be specified.' );
+        return;
     }
 
     # create the station.getPlaylist method w/ appropriate params
@@ -316,8 +358,8 @@ sub explainTrack {
     # make sure they provided a trackToken argument
     if ( !defined( $trackToken ) ) {
 
-	$self->error( 'A trackToken must be specified.' );
-	return;
+        $self->error( 'A trackToken must be specified.' );
+        return;
     }
 
     # create the track.explainTrack method w/ appropriate params
@@ -354,8 +396,8 @@ sub addArtistBookmark {
     # make sure they provided a trackToken argument
     if ( !defined( $trackToken ) ) {
 
-	$self->error( 'A trackToken must be specified.' );
-	return;
+        $self->error( 'A trackToken must be specified.' );
+        return;
     }
 
     # create the bookmark.addArtistBookmark method w/ appropriate params
@@ -392,8 +434,8 @@ sub addSongBookmark {
     # make sure they provided a trackToken argument
     if ( !defined( $trackToken ) ) {
 
-	$self->error( 'A trackToken must be specified.' );
-	return;
+        $self->error( 'A trackToken must be specified.' );
+        return;
     }
 
     # create the bookmark.addSongBookmark method w/ appropriate params
@@ -431,8 +473,8 @@ sub addFeedback {
     # make sure both the trackToken and isPositive arguments are provided
     if ( !defined( $trackToken ) || !defined( $isPositive ) ) {
 
-	$self->error( 'Both trackToken and isPositive must be specified.' );
-	return;
+        $self->error( 'Both trackToken and isPositive must be specified.' );
+        return;
     }
 
     $isPositive = ( $isPositive ) ? JSON::true() : JSON::false();
@@ -472,8 +514,8 @@ sub deleteFeedback {
     # make sure they provided a feedbackId argument
     if ( !defined( $feedbackId ) ) {
 
-	$self->error( 'A feedbackId must be specified.' );
-	return;
+        $self->error( 'A feedbackId must be specified.' );
+        return;
     }
 
     # create the station.deleteFeedback method w/ appropriate params
@@ -511,8 +553,8 @@ sub addMusic {
     # make sure both the musicToken and stationToken arguments are provided
     if ( !defined( $musicToken ) || !defined( $stationToken ) ) {
 
-	$self->error( 'Both musicToken and stationToken must be specified.' );
-	return;
+        $self->error( 'Both musicToken and stationToken must be specified.' );
+        return;
     }
 
     # create the station.addMusic method w/ appropriate params
@@ -550,8 +592,8 @@ sub deleteMusic {
     # make sure they provided a seedId argument
     if ( !defined( $seedId ) ) {
 
-	$self->error( 'A seedId must be specified.' );
-	return;
+        $self->error( 'A seedId must be specified.' );
+        return;
     }
 
     # create the station.deleteMusic method w/ appropriate params
@@ -651,8 +693,8 @@ sub renameStation {
     # make sure both the stationToken and stationName arguments are provided
     if ( !defined( $stationToken ) || !defined( $stationName ) ) {
 
-	$self->error( 'Both stationToken and stationName must be specified.' );
-	return;
+        $self->error( 'Both stationToken and stationName must be specified.' );
+        return;
     }
 
     # create the station.renameStation method w/ appropriate params
@@ -692,8 +734,8 @@ sub shareStation {
     # make sure both the stationId, stationToken, and emails arguments are provided
     if ( !defined( $stationId ) || !defined( $stationToken ) || !defined( $emails ) ) {
 
-	$self->error( 'The stationId, stationToken, and emails must be specified.' );
-	return;
+        $self->error( 'The stationId, stationToken, and emails must be specified.' );
+        return;
     }
 
     # create the station.shareStation method w/ appropriate params
@@ -732,8 +774,8 @@ sub transformSharedStation {
     # make sure they provided a stationToken argument
     if ( !defined( $stationToken ) ) {
 
-	$self->error( 'A stationToken must be specified.' );
-	return;
+        $self->error( 'A stationToken must be specified.' );
+        return;
     }
 
     # create the station.transformSharedStation method w/ appropriate params
@@ -770,8 +812,8 @@ sub deleteStation {
     # make sure they provided a stationToken argument
     if ( !defined( $stationToken ) ) {
 
-	$self->error( 'A stationToken must be specified.' );
-	return;
+        $self->error( 'A stationToken must be specified.' );
+        return;
     }
 
     # create the station.deleteStation method w/ appropriate params
@@ -808,8 +850,8 @@ sub sleepSong {
     # make sure they provided a trackToken argument
     if ( !defined( $trackToken ) ) {
 
-	$self->error( 'A trackToken must be specified.' );
-	return;
+        $self->error( 'A trackToken must be specified.' );
+        return;
     }
 
     # create the user.sleepSong method w/ appropriate params
@@ -839,7 +881,7 @@ sub sleepSong {
 
 sub getGenreStations {
 
-    my ( $self, %args ) = @_;
+    my ( $self ) = @_;
 
     # create the station.getGenreStations method w/ appropriate params
     my $method = WebService::Pandora::Method->new( name => 'station.getGenreStations',
@@ -868,7 +910,7 @@ sub getGenreStations {
 
 sub getGenreStationsChecksum {
 
-    my ( $self, %args ) = @_;
+    my ( $self ) = @_;
 
     # create the station.getGenreStationsChecksum method w/ appropriate params
     my $method = WebService::Pandora::Method->new( name => 'station.getGenreStationsChecksum',
@@ -907,8 +949,8 @@ sub setQuickMix {
     # make sure they provided a stationIds argument
     if ( !defined( $stationIds ) ) {
 
-	$self->error( 'stationIds must be specified.' );
-	return;
+        $self->error( 'stationIds must be specified.' );
+        return;
     }
 
     # create the user.setQuickMix method w/ appropriate params
@@ -938,7 +980,7 @@ sub setQuickMix {
 
 sub canSubscribe {
 
-    my ( $self, %args ) = @_;
+    my ( $self ) = @_;
 
     # create the user.canSubscribe method w/ appropriate params
     my $method = WebService::Pandora::Method->new( name => 'user.canSubscribe',
@@ -963,15 +1005,6 @@ sub canSubscribe {
     }
 
     return $ret;
-}
-
-sub error {
-
-    my ( $self, $error ) = @_;
-
-    $self->{'error'} = $error if ( defined( $error ) );
-
-    return $self->{'error'};
 }
 
 1;
